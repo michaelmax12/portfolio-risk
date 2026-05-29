@@ -226,6 +226,8 @@ with col2:
         
         with tab4:
             st.markdown("### Black-Litterman Views")
+            if "^JKSE" not in ticker_list:
+                views = {}
             if "^JKSE" in ticker_list:
                 view_df = pd.DataFrame({
                     "Asset": df.columns,
@@ -276,7 +278,7 @@ with col2:
                         cum_return_test = test_df / test_df.iloc[0]
                         
                         pnl_df = pd.DataFrame(index=test_df.index)
-                        pnl_df["Basic EF (Max Sharpe)"] = (cum_return_test * (w_basic * capital)).sum(axis=1)
+                        pnl_df["Basic EF"] = (cum_return_test * (w_basic * capital)).sum(axis=1)
                         pnl_df["Ledoit Wolf EF"] = (cum_return_test * (w_lw * capital)).sum(axis=1)
                         pnl_df["Black-Litterman"] = (cum_return_test * (bl_weights * capital)).sum(axis=1)
                         pnl_df["HRP"] = (cum_return_test * (weights * capital)).sum(axis=1)
@@ -386,45 +388,57 @@ with col2:
                     "PPP": capital
                 }
 
-                for a in range(sliding, len(df) - step, step):
-                    data = df.iloc[a - sliding : a]
-                    data_ihsg = IHSG.iloc[a - sliding : a]
-                    m_cap = helper_instance.get_market_caps(data)
-                    total_mcap = sum(m_cap.values())
-                    prior_weights = {ticker: cap / total_mcap for ticker, cap in m_cap.items()}
-                    _, _, w_basic = helper_instance.get_max_sharpe(data, int(text_input2), risk_free_rate=risk_free_rate, method_ef="Basic")
-                    bl_vol, bl_return, bl_weights = helper_instance.get_max_sharpe_bl(data, data_ihsg, m_cap, views, risk_free_rate)
-                    _, _, w_lw = helper_instance.get_max_sharpe(data, int(text_input2), risk_free_rate=risk_free_rate, method_ef="Ledoit Wolf")
-                    weights_hrp = helper_instance.get_rec_bipart(data)
-                    X, returns_custom, clean_cols = custom_instance.data_preparation(data, window=90)
-                    theta_opt = custom_instance.optimize_theta(X, returns_custom, gamma=5)
-                    weight_custom_matrix = custom_instance.getting_weight(X, theta_opt)
-                    w_custom_latest = weight_custom_matrix[-1]
-                    w_custom_series = pd.Series(w_custom_latest, index=clean_cols)
-                    w_custom_series = w_custom_series / w_custom_series.sum()
-                    weights_eq = pd.Series(1 / data.shape[1], index=data.columns)
-                    
-                    oos_period = df.iloc[a : a + step]
-                    oos_ihsg = IHSG.iloc[a : a + step]
+                sliding_int = int(sliding)
+                step_int = int(step)
+                loop_range = list(range(sliding_int, len(df) - step_int, step_int))
 
-                    cum_ret = oos_period / oos_period.iloc[0]
-                    cum_ihsg = oos_ihsg / oos_ihsg.iloc[0]
-                    common_cols = [c for c in data.columns if c in clean_cols]
-                    pnl_window = pd.DataFrame(index=oos_period.index)
-                    pnl_window["Black-Litterman"] = (cum_ret * (bl_weights * portfolio_value["Black-Litterman"])).sum(axis=1)
-                    pnl_window["Basic EF"] = (cum_ret * (w_basic * portfolio_value["Basic EF"])).sum(axis=1)
-                    pnl_window["HRP"]           = (cum_ret * (weights_hrp * portfolio_value["HRP"])).sum(axis=1)
-                    pnl_window["Ledoit Wolf EF"]= (cum_ret * (w_lw       * portfolio_value["Ledoit Wolf EF"])).sum(axis=1)
-                    pnl_window["Equal"]         = (cum_ret * (weights_eq  * portfolio_value["Equal"])).sum(axis=1)
-                    pnl_window["IHSG"]          = cum_ihsg * portfolio_value["IHSG"]
-                    pnl_window["PPP"]           = (cum_ret[common_cols] * (w_custom_series * portfolio_value["PPP"])).sum(axis=1)
+                if not loop_range:
+                    st.warning(
+                        f"Not enough data for a rebalancing backtest. "
+                        f"The dataset has {len(df)} rows but needs at least "
+                        f"Sliding ({sliding_int}) + Rebalance ({step_int}) = {sliding_int + step_int} rows. "
+                        f"Please reduce Sliding or Rebalance, or extend the date range."
+                    )
+                else:
+                    for a in loop_range:
+                        data = df.iloc[a - sliding_int : a]
+                        data_ihsg = IHSG.iloc[a - sliding_int : a]
+                        m_cap = helper_instance.get_market_caps(data)
+                        total_mcap = sum(m_cap.values())
+                        prior_weights = {ticker: cap / total_mcap for ticker, cap in m_cap.items()}
+                        _, _, w_basic = helper_instance.get_max_sharpe(data, int(text_input2), risk_free_rate=risk_free_rate, method_ef="Basic")
+                        bl_vol, bl_return, bl_weights = helper_instance.get_max_sharpe_bl(data, data_ihsg, m_cap, views, risk_free_rate)
+                        _, _, w_lw = helper_instance.get_max_sharpe(data, int(text_input2), risk_free_rate=risk_free_rate, method_ef="Ledoit Wolf")
+                        weights_hrp = helper_instance.get_rec_bipart(data)
+                        X, returns_custom, clean_cols = custom_instance.data_preparation(data, window=90)
+                        theta_opt = custom_instance.optimize_theta(X, returns_custom, gamma=5)
+                        weight_custom_matrix = custom_instance.getting_weight(X, theta_opt)
+                        w_custom_latest = weight_custom_matrix[-1]
+                        w_custom_series = pd.Series(w_custom_latest, index=clean_cols)
+                        w_custom_series = w_custom_series / w_custom_series.sum()
+                        weights_eq = pd.Series(1 / data.shape[1], index=data.columns)
+                        
+                        oos_period = df.iloc[a : a + step_int]
+                        oos_ihsg = IHSG.iloc[a : a + step_int]
 
-                    results.append(pnl_window)
+                        cum_ret = oos_period / oos_period.iloc[0]
+                        cum_ihsg = oos_ihsg / oos_ihsg.iloc[0]
+                        common_cols = [c for c in data.columns if c in clean_cols]
+                        pnl_window = pd.DataFrame(index=oos_period.index)
+                        pnl_window["Black-Litterman"] = (cum_ret * (bl_weights * portfolio_value["Black-Litterman"])).sum(axis=1)
+                        pnl_window["Basic EF"] = (cum_ret * (w_basic * portfolio_value["Basic EF"])).sum(axis=1)
+                        pnl_window["HRP"]           = (cum_ret * (weights_hrp * portfolio_value["HRP"])).sum(axis=1)
+                        pnl_window["Ledoit Wolf EF"]= (cum_ret * (w_lw       * portfolio_value["Ledoit Wolf EF"])).sum(axis=1)
+                        pnl_window["Equal"]         = (cum_ret * (weights_eq  * portfolio_value["Equal"])).sum(axis=1)
+                        pnl_window["IHSG"]          = cum_ihsg * portfolio_value["IHSG"]
+                        pnl_window["PPP"]           = (cum_ret[common_cols] * (w_custom_series * portfolio_value["PPP"])).sum(axis=1)
 
-                    for col in portfolio_value:
-                        portfolio_value[col] = pnl_window[col].iloc[-1]
+                        results.append(pnl_window)
 
-                final_pnl = pd.concat(results)
+                        for col in portfolio_value:
+                            portfolio_value[col] = pnl_window[col].iloc[-1]
+
+                    final_pnl = pd.concat(results)
                     
                 fig_rebalance = px.line(final_pnl, x=final_pnl.index, y=final_pnl.columns)
 
@@ -454,7 +468,7 @@ with col2:
                     margin=dict(l=0, r=0, t=30, b=0),
                     title="Monte Carlo Paths"
                 )
-                statistic_porto = helper_instance.calculated_risk_metric(monte_t_port, pnl_df[option_mc][-1])
+                statistic_porto = helper_instance.calculated_risk_metric(monte_t_port, pnl_df[option_mc].iloc[-1])
                 
                 st.markdown(f"### Monte Carlo Simulation ({option_mc})")
                 st.line_chart(statistic_porto)
@@ -462,7 +476,7 @@ with col2:
                 final_sim_values = monte_t_port[-1, :]
                 var_threshold = statistic_porto["5%_Val"].iloc[-1]
                 cvar_loss = statistic_porto["CVaR_95"].iloc[-1]
-                initial_val = pnl_df[option_mc][-1]
+                initial_val = pnl_df[option_mc].iloc[-1]
                 cvar_threshold = initial_val - cvar_loss
 
                 fig_CVAR = px.histogram(x=final_sim_values, nbins=100)
@@ -471,7 +485,7 @@ with col2:
 
                 st.plotly_chart(fig_CVAR, key="CVAR_distribution")
                 fig_risk_time = px.line(statistic_porto, y=["Median_Val", "5%_Val"])
-                cvar_vals = pnl_df[option_mc][-1] - statistic_porto["CVaR_95"]
+                cvar_vals = pnl_df[option_mc].iloc[-1] - statistic_porto["CVaR_95"]
                 fig_risk_time.add_scatter(y=cvar_vals, mode='lines', name='CVaR_95', line=dict(dash='dot', color='red'))
 
                 st.plotly_chart(fig_risk_time, key="CVAR_timeseries")
@@ -511,7 +525,10 @@ with col2:
                 close_ppp = df.copy()
                 cum_return = close_ppp / close_ppp.iloc[0]
                 for i in close_ppp.columns:
-                    close_ppp[f"Return_{i}"] = cum_return[i] * weight_HRP.loc[i, "Nominal_IDR"]
+                    if i in weight_PPP.index:
+                        close_ppp[f"Return_{i}"] = cum_return[i] * weight_PPP.loc[i, "Nominal_IDR"]
+                    else:
+                        close_ppp[f"Return_{i}"] = 0
                 value_columns = [col for col in close_ppp.columns if "Return_" in col]
                 close_ppp["Total_Value"] = close_ppp[value_columns].sum(axis=1)
                 close_ppp["PNL_Pct"] = ((close_ppp["Total_Value"] / capital) - 1) * 100
