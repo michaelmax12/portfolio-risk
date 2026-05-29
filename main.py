@@ -160,7 +160,7 @@ with st.sidebar:
     st.markdown("### Risk Parameters")
     text_input = st.text_area(
         "Enter Tickers (comma or newline separated)",
-        value="BBRI, BBCA, BMRI, BBNI, ^JKSE",
+        value="AADI, AALI, ACES, ADMR, ADRO, AKRA, AMRT, ANTM, ARCI, ASII, BBCA, BBNI, BBRI, BBTN, BFIN, BKSL, BMRI, BNGA, BRIS, BRMS, BUKA, BUMI, CPIN, CTRA, DEWA, DMAS, DSNG, ELSA, EMAS, ENRG, ERAA, ESSA, EXCL, GGRM, GOTO, HEAL, HMSP, HRTA, ICBP, INCO, INDF, INKP, ISAT, ITMG, JPFA, JSMR, KLBF, LSIP, MAPA, MAPI, MBMA, MDKA, MEDC, MYOR, NCKL, PGAS, PGEO, PTBA, PWON, SCMA, SMDR, SMGR, TAPG, TINS, TKIM, TLKM, TOBA, TOWR, UNTR, UNVR, WIFI, ^JKSE",
         height=150,
     )
     text_input4 = st.text_input(
