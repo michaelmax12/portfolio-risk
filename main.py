@@ -160,7 +160,7 @@ with st.sidebar:
     st.markdown("### Risk Parameters")
     text_input = st.text_area(
         "Enter Tickers (comma or newline separated)",
-        value="BBRI.JK, BBCA.JK, ADRO.JK, BBNI.JK, ^JKSE",
+        value="BBRI, BBCA, BMRI, BBNI, ^JKSE",
         height=150,
     )
     text_input4 = st.text_input(
